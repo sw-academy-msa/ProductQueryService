@@ -1,0 +1,19 @@
+# 로컬 앱만 실행합니다. 일반 DB는 기존 컨테이너를 사용하고 새 DB 인스턴스를 만들지 않습니다.
+name: stockdrop-product-query
+services:
+  product-query:
+    build: .
+    env_file: .env
+    environment:
+      DB_URL: jdbc:postgresql://host.docker.internal:5433/product_query
+      ACCOUNT_JWKS_URI: http://host.docker.internal:8080/.well-known/jwks.json
+      EUREKA_DEFAULT_ZONE: http://host.docker.internal:8761/eureka/
+      # 호스트 실행 Gateway용입니다. Docker 간 실행은 호출 가능한 호스트를 주입합니다.
+      SERVICE_HOSTNAME: ${SERVICE_HOSTNAME:-localhost}
+      SERVICE_PORT: "8082"
+      KAFKA_BOOTSTRAP_SERVERS: host.docker.internal:19092
+      QUERY_IMAGES_ENDPOINT: http://host.docker.internal:9092
+    ports:
+      - "127.0.0.1:8082:8082"
+    restart: unless-stopped
+    stop_grace_period: 30s

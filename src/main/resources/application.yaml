@@ -1,0 +1,90 @@
+# 조회와 Kafka 소비가 같은 앱에 있지만 구매 변경 API는 제공하지 않습니다.
+spring:
+  config:
+    import: optional:file:./.env[.properties]
+  application:
+    name: product-query-service
+  profiles:
+    default: local
+  jpa:
+    open-in-view: false
+    properties:
+      hibernate:
+        default_schema: product_query
+        jdbc:
+          time_zone: UTC
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:19092}
+    consumer:
+      group-id: ${QUERY_CONSUMER_GROUP:product-query-v1}
+      enable-auto-commit: false
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      # ConsumerRecord 로그에 문의 원문이 출력되지 않도록 byte[]로 수신합니다.
+      value-deserializer: org.apache.kafka.common.serialization.ByteArrayDeserializer
+      properties:
+        allow.auto.create.topics: false
+        max.partition.fetch.bytes: 4194304
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.ByteArraySerializer
+      acks: all
+      properties:
+        enable.idempotence: true
+        # 공개 스냅샷과 DLT 원문을 같은 크기 예산으로 전달합니다.
+        max.request.size: 4194304
+        max.block.ms: 2000
+        delivery.timeout.ms: 8000
+        request.timeout.ms: 3000
+    listener:
+      ack-mode: record
+      auto-startup: ${QUERY_EVENTS_ENABLED:false}
+    admin:
+      auto-create: false
+server:
+  port: ${SERVER_PORT:8082}
+  shutdown: graceful
+  forward-headers-strategy: none
+query:
+  events:
+    enabled: ${QUERY_EVENTS_ENABLED:false}
+    product-topic: stockdrop.product.public.v1
+    inquiry-topic: stockdrop.product.inquiries.v1
+  auth:
+    issuer: ${JWT_ISSUER:http://localhost:8080}
+    audience: ${JWT_AUDIENCE:stockdrop-api}
+    jwk-set-uri: ${ACCOUNT_JWKS_URI:http://localhost:8080/.well-known/jwks.json}
+  images:
+    enabled: ${QUERY_IMAGES_ENABLED:false}
+    local: ${QUERY_IMAGES_LOCAL:false}
+    bucket: ${QUERY_IMAGES_BUCKET:}
+    region: ${QUERY_IMAGES_REGION:ap-northeast-2}
+    endpoint: ${QUERY_IMAGES_ENDPOINT:}
+eureka:
+  client:
+    enabled: ${EUREKA_CLIENT_ENABLED:true}
+    service-url:
+      defaultZone: ${EUREKA_DEFAULT_ZONE:http://localhost:8761/eureka/}
+    healthcheck:
+      enabled: true
+  instance:
+    hostname: ${SERVICE_HOSTNAME:localhost}
+    instance-id: ${spring.application.name}:${SERVICE_INSTANCE_ID:${random.uuid}}
+    non-secure-port: ${SERVICE_PORT:${server.port}}
+    health-check-url-path: /actuator/health
+    status-page-url-path: /actuator/health
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: never
+      probes:
+        enabled: true
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
