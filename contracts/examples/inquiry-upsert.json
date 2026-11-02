@@ -1,0 +1,17 @@
+{
+  "eventId" : "0b0cecff-a846-495a-8c18-ec4111f26ce4",
+  "schemaVersion" : 1,
+  "type" : "INQUIRY_UPSERT",
+  "aggregateId" : "00000000-0000-0000-0000-000000000002",
+  "aggregateVersion" : 0,
+  "occurredAt" : "2030-01-01T00:00:00Z",
+  "product" : null,
+  "inquiry" : {
+    "productId" : "00000000-0000-0000-0000-000000000001",
+    "buyerId" : "00000000-0000-0000-0000-000000000003",
+    "question" : "합성 상품 문의",
+    "answer" : null,
+    "createdAt" : "2029-12-31T23:59:00Z",
+    "answeredAt" : null
+  }
+}

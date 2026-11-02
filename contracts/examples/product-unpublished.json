@@ -1,0 +1,10 @@
+{
+  "eventId" : "d2227e76-bff6-4859-8ce5-268b5d641dc8",
+  "schemaVersion" : 1,
+  "type" : "PRODUCT_UNPUBLISHED",
+  "aggregateId" : "00000000-0000-0000-0000-000000000001",
+  "aggregateVersion" : 2,
+  "occurredAt" : "2030-01-01T00:00:00Z",
+  "product" : null,
+  "inquiry" : null
+}
