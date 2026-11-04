@@ -48,8 +48,6 @@ Product Command에 Outbox 저장·발행이 추가되었습니다. Kafka 토픽�
     .\gradlew.bat test bootJar
 
 - [소비 이벤트 계약](contracts/README.md)
-- [API와 프런트 연동](docs/api.md)
-- [검증 범위와 운영 경계](docs/operations.md)
 - openapi/product-query.openapi.json: 실제 컨트롤러에서 생성한 계약 스냅샷
 
 개발 ddl-auto=update, 운영 validate를 유지합니다. 운영 DDL은 별도 검토·버전 관리 후 적용해야 합니다.

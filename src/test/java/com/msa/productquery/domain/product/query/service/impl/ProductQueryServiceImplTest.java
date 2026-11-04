@@ -49,6 +49,21 @@ class ProductQueryServiceImplTest {
         verifyNoInteractions(products, inquiries);
     }
 
+    /** 곱셈 오버플로 없이 JPA 최대 오프셋 초과를 DB 접근 전에 거절합니다. */
+    @Test
+    void oversizedOffsetIsRejectedBeforeDatabaseAccess() {
+        var request =
+                new ProductSearchRequest(
+                        null, null, null, null, Integer.MAX_VALUE, 100, null, null);
+        assertThatThrownBy(() -> service.list(request))
+                .isInstanceOfSatisfying(
+                        ProductQueryException.class,
+                        exception ->
+                                assertThat(exception.getErrorCode())
+                                        .isEqualTo(ProductQueryErrorCode.INVALID_REQUEST));
+        verifyNoInteractions(products, inquiries);
+    }
+
     @Test
     void invalidDateRangeIsRejectedBeforeDatabaseAccess() {
         var request = new ProductSearchRequest(null, null, null, null, 0, 20, now, now);

@@ -13,6 +13,8 @@ BEGIN
         RAISE EXCEPTION '기존 Query DB 소유권이 예상과 다릅니다.';
     END IF;
 END $$;
+-- 초기화 스크립트는 이 SQL 실행 후 설정 비밀번호로 TCP 로그인을 확인해야 성공을 출력합니다.
+-- 기존 역할의 비밀번호는 변경하지 않습니다.
 SELECT NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'product_query') AS create_role \gset
 \if :create_role
 CREATE ROLE product_query LOGIN PASSWORD :'query_password'

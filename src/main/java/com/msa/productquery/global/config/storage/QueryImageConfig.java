@@ -16,7 +16,13 @@ import java.net.URI;
 public class QueryImageConfig {
     @Bean
     S3Presigner queryImagePresigner(QueryImageProperties properties) {
-        if (properties.local()
+        // 활성화된 이미지 설정 오류는 요청 시점이 아닌 시작 시점에 발견합니다.
+        if (properties.enabled()
+                && (properties.bucket() == null || properties.bucket().isBlank())) {
+            throw new IllegalStateException("이미지 버킷 설정이 필요합니다.");
+        }
+        if (properties.enabled()
+                && properties.local()
                 && (properties.endpoint() == null || properties.endpoint().isBlank())) {
             throw new IllegalStateException("로컬 이미지 주소가 필요합니다.");
         }

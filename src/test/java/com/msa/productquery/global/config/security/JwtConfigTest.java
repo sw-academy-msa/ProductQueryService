@@ -87,7 +87,29 @@ class JwtConfigTest {
 
     @Test
     void decoderCreationDoesNotContactAccount() {
-        assertThat(new JwtConfig().jwtDecoder(PROPERTIES, Clock.systemUTC())).isNotNull();
+        assertThat(
+                        new JwtConfig()
+                                .jwtDecoder(
+                                        PROPERTIES,
+                                        Clock.systemUTC(),
+                                        new org.springframework.mock.env.MockEnvironment()))
+                .isNotNull();
+    }
+
+    /** 운영 HTTP 키 조회는 시작 단계에서 실패하며 HTTPS 설정은 원격 호출 없이 생성됩니다. */
+    @Test
+    void productionRequiresHttpsForJwks() {
+        var environment = new org.springframework.mock.env.MockEnvironment();
+        environment.setActiveProfiles("prod");
+        assertThatThrownBy(
+                        () ->
+                                new JwtConfig()
+                                        .jwtDecoder(PROPERTIES, Clock.systemUTC(), environment))
+                .isInstanceOf(IllegalStateException.class);
+        var secure =
+                new AuthProperties(
+                        PROPERTIES.issuer(), PROPERTIES.audience(), "https://account.test/jwks");
+        assertThat(new JwtConfig().jwtDecoder(secure, Clock.systemUTC(), environment)).isNotNull();
     }
 
     private static JwtClaimsSet.Builder claims() {

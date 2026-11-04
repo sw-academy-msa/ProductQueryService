@@ -29,7 +29,9 @@ public class ProductQueryController {
     }
 
     @GetMapping
-    public ApiResponse<Page<Card>> list(@Valid @ModelAttribute ProductSearchRequest request) {
+    public ApiResponse<Page<Card>> list(
+            @org.springdoc.core.annotations.ParameterObject @Valid @ModelAttribute
+                    ProductSearchRequest request) {
         Page<Card> response = service.list(request);
         return ApiResponse.onSuccess(response, SuccessCode.OK);
     }

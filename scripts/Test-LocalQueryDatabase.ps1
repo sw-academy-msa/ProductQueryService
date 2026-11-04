@@ -3,8 +3,10 @@ param([string]$Container = 'stockdrop-account-postgres')
 $ErrorActionPreference = 'Stop'
 $root = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $envText = [IO.File]::ReadAllText((Join-Path $root '.env'))
-$match = [regex]::Match($envText,'(?m)^DB_PASSWORD=([^\r\n]+)')
-if (-not $match.Success) { throw 'Query 비밀번호 설정이 필요합니다.' }
+# 앱과 다른 비밀번호를 검사하지 않도록 누락·중복 설정을 먼저 거절합니다.
+$matches = [regex]::Matches($envText,'(?m)^DB_PASSWORD=([^\r\n]*)\r?$')
+if ($matches.Count -ne 1 -or [string]::IsNullOrWhiteSpace($matches[0].Groups[1].Value)) { throw 'DB_PASSWORD는 비어 있지 않은 값으로 정확히 한 번 설정해야 합니다.' }
+$match = $matches[0]
 $sql = @'
 BEGIN;
 DO $$

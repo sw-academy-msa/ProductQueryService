@@ -259,7 +259,8 @@ public class ProductQueryServiceImpl implements ProductQueryService {
     }
 
     private org.springframework.data.domain.Pageable paging(int page, int size, Sort sort) {
-        if (page < 0 || size < 1 || size > 100) {
+        // JPA의 정수 오프셋 범위를 넘기기 전에 잘못된 요청으로 거절합니다.
+        if (page < 0 || size < 1 || size > 100 || (long) page * size > Integer.MAX_VALUE) {
             throw new ProductQueryException(ProductQueryErrorCode.INVALID_REQUEST);
         }
         return PageRequest.of(page, size, sort);

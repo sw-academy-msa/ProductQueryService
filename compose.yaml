@@ -4,6 +4,10 @@ services:
   product-query:
     build: .
     env_file: .env
+    # Linux에서도 호스트의 브리지 게이트웨이 주소를 찾습니다.
+    # 호스트 서비스도 브리지 게이트웨이에서 연결 가능한 주소에 바인딩해야 합니다.
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
     environment:
       DB_URL: jdbc:postgresql://host.docker.internal:5433/product_query
       ACCOUNT_JWKS_URI: http://host.docker.internal:8080/.well-known/jwks.json

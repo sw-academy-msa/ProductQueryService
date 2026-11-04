@@ -18,7 +18,17 @@ import java.util.UUID;
 @EnableConfigurationProperties(AuthProperties.class)
 public class JwtConfig {
     @Bean
-    public JwtDecoder jwtDecoder(AuthProperties properties, Clock clock) {
+    public JwtDecoder jwtDecoder(
+            AuthProperties properties,
+            Clock clock,
+            org.springframework.core.env.Environment environment) {
+        // 운영 공개키 조회는 TLS를 강제하며 로컬 개발의 HTTP 계약은 유지합니다.
+        if (environment.acceptsProfiles(org.springframework.core.env.Profiles.of("prod"))
+                && !"https"
+                        .equalsIgnoreCase(
+                                java.net.URI.create(properties.jwkSetUri()).getScheme())) {
+            throw new IllegalStateException("운영 JWKS 주소는 HTTPS여야 합니다.");
+        }
         // issuer discovery 없이 시작하며 실제 서명 검증 시 JWKS 공개키만 조회합니다.
         var decoder =
                 NimbusJwtDecoder.withJwkSetUri(properties.jwkSetUri())

@@ -201,6 +201,15 @@ class ProductQueryControllerTest extends QueryDatabaseTestSupport {
                 .andExpect(jsonPath("$.code").value("COMMON_INVALID_REQUEST"));
     }
 
+    /** 지원하지 않는 Accept에도 406 JSON 오류 계약을 반환합니다. */
+    @Test
+    void unsupportedAcceptReturnsJsonError() throws Exception {
+        mvc.perform(get("/api/v1/products").accept("application/xml"))
+                .andExpect(status().isNotAcceptable())
+                .andExpect(content().contentTypeCompatibleWith("application/json"))
+                .andExpect(jsonPath("$.code").value("COMMON_NOT_ACCEPTABLE"));
+    }
+
     @Test
     void exportsActualOpenApiWithoutCreatingAnHttpProjectionWriteEndpoint() throws Exception {
         var result =
@@ -210,5 +219,13 @@ class ProductQueryControllerTest extends QueryDatabaseTestSupport {
         java.nio.file.Files.writeString(
                 path,
                 result.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8));
+        // 표기 순서가 아닌 실제 API 계약 변경을 검출합니다.
+        org.assertj.core.api.Assertions.assertThat(
+                        mapper.readTree(java.nio.file.Files.readString(path)))
+                .isEqualTo(
+                        mapper.readTree(
+                                java.nio.file.Files.readString(
+                                        java.nio.file.Path.of(
+                                                "openapi/product-query.openapi.json"))));
     }
 }

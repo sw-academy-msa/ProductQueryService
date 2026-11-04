@@ -13,6 +13,8 @@ if (Test-Path -LiteralPath $envPath) {
     if ($match.Count -ne 1) { throw '기존 비밀번호를 안전하게 식별하지 못해 변경하지 않습니다.' }
     if ($original -notmatch '(?m)^DB_USERNAME=product_query\r?$') { throw '다른 DB 계정 설정이 있어 변경하지 않습니다.' }
     $password = $match[0].Groups[1].Value
+    # 예제 자격증명으로 SQL을 실행하거나 초기화 완료로 오인하지 않습니다.
+    if ($password -eq 'replace-with-generated-query-password') { throw '예제 비밀번호를 실제 Query 비밀번호로 설정해야 합니다.' }
 } else {
     $bytes = New-Object byte[] 32
     $rng = [Security.Cryptography.RandomNumberGenerator]::Create()
@@ -33,6 +35,14 @@ try {
     $ErrorActionPreference = 'Continue'
     $captured = $sql | & docker exec -i $Container sh -c 'exec psql -X -U $POSTGRES_USER -d $POSTGRES_DB -v ON_ERROR_STOP=1' 2>&1
     $code = $LASTEXITCODE
+    # 기존 역할의 비밀번호는 변경하지 않고 앱과 같은 자격증명으로 TCP 인증합니다.
+    if ($code -eq 0) {
+        $loginInput = $password + $nl + "SELECT 1;"
+        $loginOutput = $loginInput | & docker exec -i $Container sh -c 'IFS= read -r PGPASSWORD; export PGPASSWORD; exec psql -X -h 127.0.0.1 -U product_query -d product_query -v ON_ERROR_STOP=1' 2>&1
+        $code = $LASTEXITCODE
+        $loginInput = $null
+        $loginOutput = $null
+    }
 } finally {
     $ErrorActionPreference = $previous
     $password = $null

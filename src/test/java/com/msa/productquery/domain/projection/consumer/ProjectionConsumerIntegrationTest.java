@@ -152,7 +152,7 @@ class ProjectionConsumerIntegrationTest extends QueryDatabaseTestSupport {
         // 기존 개발 DB가 아닌 격리된 테스트 DB의 테이블 이름만 잠시 바꿔 실제 SQL 장애를 만듭니다.
         jdbc.execute(
                 "alter table product_query.processed_events rename to"
-                    + " processed_events_unavailable");
+                        + " processed_events_unavailable");
         try {
             kafka.send(
                             PRODUCT_TOPIC,
@@ -165,7 +165,7 @@ class ProjectionConsumerIntegrationTest extends QueryDatabaseTestSupport {
         } finally {
             jdbc.execute(
                     "alter table product_query.processed_events_unavailable rename to"
-                        + " processed_events");
+                            + " processed_events");
         }
         await().atMost(Duration.ofSeconds(30))
                 .untilAsserted(
@@ -219,11 +219,20 @@ class ProjectionConsumerIntegrationTest extends QueryDatabaseTestSupport {
                             var saved = inquiries.findById(inquiryId).orElseThrow();
                             assertThat(saved.sourceVersion).isEqualTo(2);
                             assertThat(saved.answer).isEqualTo("판매자 확인 답변");
-                            assertThat(
+                            // 키 존재뿐 아니라 이벤트의 FAQ 내용이 정확히 투영됐는지 확인합니다.
+                            var snapshot =
+                                    mapper.readTree(
                                             products.findById(UUID.fromString(key))
                                                     .orElseThrow()
-                                                    .snapshot)
-                                    .contains("faqs");
+                                                    .snapshot);
+                            var expectedFaq =
+                                    mapper.readTree(faq).path("product").path("faqs").get(0);
+                            assertThat(snapshot.path("faqs").size()).isEqualTo(1);
+                            var actualFaq = snapshot.path("faqs").get(0);
+                            for (String field : java.util.List.of("id", "question", "answer")) {
+                                assertThat(actualFaq.path(field))
+                                        .isEqualTo(expectedFaq.path(field));
+                            }
                         });
     }
 }
