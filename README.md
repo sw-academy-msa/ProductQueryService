@@ -55,3 +55,22 @@ Product Command에 Outbox 저장·발행이 추가되었습니다. Kafka 토픽�
 개발 ddl-auto=update, 운영 validate를 유지합니다. 운영 DDL은 별도 검토·버전 관리 후 적용해야 합니다.
 상세 docs와 AGENTS.md는 기존 규칙에 따라 Git에서 제외합니다.
 Git add/commit/push와 AWS 변경은 수행하지 않습니다.
+
+## HTTP 응답 DTO
+
+상품 상세의 attributes·dimensions·faqs와 FAQ 조회는 HTTP 전용 DTO이며 Kafka 이벤트 타입과 분리합니다. 기존 필드는 유지합니다. GET /api/v1/categories 응답은 배열 대신 {"categories": [...]} 객체이므로 프런트는 categories 필드를 읽어야 합니다. 옵션·FAQ 목록은 응답 DTO의 배열을 유지합니다.
+
+
+## 객체 생성 규칙
+
+HTTP 응답 DTO는 record를 유지하고 Lombok 빌더로 필드명을 지정하여 생성합니다. 조회 모델과 멱등 이력은 기존 생성자에 빌더를 적용하여 초기 버전과 JPA INSERT 판정을 보존합니다. 기존 행의 상태 변경·잠금·이벤트 검증은 기존 서비스 트랜잭션에서 수행합니다. Kafka 수신 이벤트의 JSON 계약과 역직렬화 방식은 유지합니다.
+Lombok은 Spring Boot가 관리하는 버전을 compileOnly·annotationProcessor로 사용하며 운영 실행 의존성에는 포함하지 않습니다. 빌더 문자열은 입력값을 출력하지 않습니다.
+
+## 도메인 예외
+
+상품 조회 업무 오류는 product/exception의 ProductQueryException·ProductQueryErrorCode로 표현하고 기존 COMMON_INVALID_REQUEST·COMMON_RESOURCE_NOT_FOUND 응답을 유지합니다. 공통 BusinessException을 상속하므로 기존 GlobalExceptionHandler가 처리합니다.
+조회 모델 반영 오류는 projection/exception의 ProjectionException·ProjectionErrorCode로 구분합니다. 기존 InvalidProjectionEventException은 이 기반 타입을 상속하되 타입·패키지·메시지를 유지하여 Kafka의 영구 오류/DLT 분류를 보존합니다. 기반 예외 전체를 재시도 제외 대상으로 등록하지 않습니다. DB 장애·설정 오류·JDK 기능 오류 같은 기술적 실패는 기존 예외와 재시도·로그 경로를 유지합니다.
+
+## 공통 성공 응답
+
+Account와 같은 ApiResponse(success/code/message/data)를 반환합니다. 목록은 data.items, 상세는 data, 옵션·FAQ는 data 배열, 카테고리는 data.categories에서 읽습니다. HTTP 200·기존 오류 응답·DTO 변환·Kafka 계약은 유지합니다. Mapper는 추가하지 않습니다. 공통 성공 응답에는 Account와 같은 Cache-Control:no-store를 적용합니다.
