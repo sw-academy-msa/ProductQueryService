@@ -1,0 +1,14 @@
+# 실제 환경 파일·Eureka·AWS 없이 격리된 DB/Kafka fixture로 검증합니다.
+spring:
+  config:
+    import: optional:classpath:/test-overrides.properties
+query:
+  events:
+    enabled: false
+  auth:
+    issuer: https://account.test
+    audience: stockdrop-api
+    jwk-set-uri: http://localhost:1/.well-known/jwks.json
+eureka:
+  client:
+    enabled: false

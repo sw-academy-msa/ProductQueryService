@@ -1,0 +1,14 @@
+# 일반 PostgreSQL의 별도 Query DB에 연결합니다. Command 5434 원본을 읽지 않습니다.
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5433/product_query}
+    username: ${DB_USERNAME:product_query}
+    password: ${DB_PASSWORD}
+  jpa:
+    hibernate:
+      ddl-auto: update
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
