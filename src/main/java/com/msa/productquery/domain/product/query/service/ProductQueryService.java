@@ -2,7 +2,6 @@ package com.msa.productquery.domain.product.query.service;
 
 import com.msa.productquery.domain.product.query.dto.request.ProductSearchRequest;
 import com.msa.productquery.domain.product.query.dto.response.QueryResponses.*;
-import com.msa.productquery.domain.projection.event.ProductSnapshot;
 
 import java.time.LocalDate;
 import java.util.*;
@@ -15,9 +14,9 @@ public interface ProductQueryService {
 
     List<Option> options(UUID product);
 
-    List<ProductSnapshot.Faq> faqs(UUID product);
+    List<Faq> faqs(UUID product);
 
-    List<String> categories();
+    Categories categories();
 
     Schedule schedule(LocalDate from, LocalDate to);
 

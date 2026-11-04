@@ -35,22 +35,14 @@ import java.util.*;
 @ActiveProfiles("test")
 @Import(QueryDatabaseTestSupport.Time.class)
 class ProductQueryControllerTest extends QueryDatabaseTestSupport {
-    @Autowired
-    MockMvc mvc;
-    @Autowired
-    ProjectionService service;
-    @Autowired
-    ProductProjectionRepository products;
-    @Autowired
-    InquiryProjectionRepository inquiries;
-    @Autowired
-    ProcessedEventRepository receipts;
-    @Autowired
-    ObjectMapper mapper;
-    @Autowired
-    MutableClock clock;
-    @MockitoBean
-    JwtDecoder decoder;
+    @Autowired MockMvc mvc;
+    @Autowired ProjectionService service;
+    @Autowired ProductProjectionRepository products;
+    @Autowired InquiryProjectionRepository inquiries;
+    @Autowired ProcessedEventRepository receipts;
+    @Autowired ObjectMapper mapper;
+    @Autowired MutableClock clock;
+    @MockitoBean JwtDecoder decoder;
     UUID product;
 
     @BeforeEach
@@ -76,38 +68,44 @@ class ProductQueryControllerTest extends QueryDatabaseTestSupport {
         add(product(product, 1, "새 노트", NOW.minusSeconds(60), 2, 1));
         mvc.perform(get("/api/v1/products"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.items[0].name").value("새 노트"));
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.code").value("COMMON_SUCCESS"))
+                .andExpect(header().string("Cache-Control", "no-store"))
+                .andExpect(jsonPath("$.data.items[0].name").value("새 노트"));
         mvc.perform(get("/api/v1/products/" + product))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("ON_SALE"))
-                .andExpect(jsonPath("$.stock.availableQuantity").value(7))
-                .andExpect(jsonPath("$.stock.confirmedQuantity").value(1))
-                .andExpect(jsonPath("$.stock.approximate").value(true))
-                .andExpect(jsonPath("$.dispatchAddress").doesNotExist());
+                .andExpect(jsonPath("$.data.status").value("ON_SALE"))
+                .andExpect(jsonPath("$.data.stock.availableQuantity").value(7))
+                .andExpect(jsonPath("$.data.stock.confirmedQuantity").value(1))
+                .andExpect(jsonPath("$.data.stock.approximate").value(true))
+                .andExpect(jsonPath("$.data.dispatchAddress").doesNotExist())
+                .andExpect(jsonPath("$.data.attributes[0].name").value("규격"))
+                .andExpect(jsonPath("$.data.attributes[0].value").value("A5"))
+                .andExpect(jsonPath("$.data.faqs[0].answer").value("A5입니다."));
         mvc.perform(get("/api/v1/products/" + product + "/options"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].availableQuantity").value(7));
+                .andExpect(jsonPath("$.data[0].availableQuantity").value(7));
         mvc.perform(get("/api/v1/products/" + product + "/faqs"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].answer").value("A5입니다."));
+                .andExpect(jsonPath("$.data[0].answer").value("A5입니다."));
         mvc.perform(get("/api/v1/categories"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0]").value("문구"));
+                .andExpect(jsonPath("$.data.categories[0]").value("문구"));
     }
 
     @Test
     void allReservedStockIsNotSoldOutAndTimeStateUsesCurrentServerClock() throws Exception {
         add(product(product, 1, "임시 확보", NOW, 10, 0));
         mvc.perform(get("/api/v1/products/" + product))
-                .andExpect(jsonPath("$.status").value("ON_SALE"))
-                .andExpect(jsonPath("$.canAttemptPurchase").value(false))
-                .andExpect(jsonPath("$.stock.confirmedQuantity").value(0));
+                .andExpect(jsonPath("$.data.status").value("ON_SALE"))
+                .andExpect(jsonPath("$.data.canAttemptPurchase").value(false))
+                .andExpect(jsonPath("$.data.stock.confirmedQuantity").value(0));
         clock.set(NOW.minusNanos(1));
         mvc.perform(get("/api/v1/products/" + product))
-                .andExpect(jsonPath("$.status").value("UPCOMING"));
+                .andExpect(jsonPath("$.data.status").value("UPCOMING"));
         clock.set(NOW.plusSeconds(10800));
         mvc.perform(get("/api/v1/products/" + product))
-                .andExpect(jsonPath("$.status").value("ENDED"));
+                .andExpect(jsonPath("$.data.status").value("ENDED"));
     }
 
     @Test
@@ -117,13 +115,13 @@ class ProductQueryControllerTest extends QueryDatabaseTestSupport {
         add(product(UUID.randomUUID(), 1, "다른 노트", NOW.minusSeconds(60), 0, 0));
         mvc.perform(get("/api/v1/products").param("status", "SOLD_OUT"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.totalElements").value(1));
+                .andExpect(jsonPath("$.data.totalElements").value(1));
         mvc.perform(get("/api/v1/products").param("keyword", "%"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.totalElements").value(1));
+                .andExpect(jsonPath("$.data.totalElements").value(1));
         mvc.perform(get("/api/v1/products").param("keyword", "판매처"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.totalElements").value(2));
+                .andExpect(jsonPath("$.data.totalElements").value(2));
     }
 
     @Test
@@ -131,13 +129,15 @@ class ProductQueryControllerTest extends QueryDatabaseTestSupport {
         add(product(product, 1, "공개", NOW, 0, 0));
         add(hidden(product, 3));
         add(product(product, 2, "늦은 과거", NOW, 0, 0));
-        mvc.perform(get("/api/v1/products")).andExpect(jsonPath("$.totalElements").value(0));
+        mvc.perform(get("/api/v1/products")).andExpect(jsonPath("$.data.totalElements").value(0));
         for (String path :
                 List.of(
                         "/api/v1/products/" + product,
                         "/api/v1/products/" + product + "/options",
                         "/api/v1/products/" + product + "/faqs")) {
-            mvc.perform(get(path)).andExpect(status().isNotFound());
+            mvc.perform(get(path))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.code").value("COMMON_RESOURCE_NOT_FOUND"));
         }
     }
 
@@ -156,8 +156,8 @@ class ProductQueryControllerTest extends QueryDatabaseTestSupport {
                                                 .authorities(
                                                         new SimpleGrantedAuthority("ROLE_BUYER"))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.totalElements").value(1))
-                .andExpect(jsonPath("$.items[0].buyerId").doesNotExist());
+                .andExpect(jsonPath("$.data.totalElements").value(1))
+                .andExpect(jsonPath("$.data.items[0].buyerId").doesNotExist());
         mvc.perform(get(path).with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
                 .andExpect(status().isForbidden());
     }
@@ -180,20 +180,25 @@ class ProductQueryControllerTest extends QueryDatabaseTestSupport {
                                 .param("from", "2030-01-01")
                                 .param("to", "2030-01-01"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.zone").value("Asia/Seoul"))
-                .andExpect(jsonPath("$.days[0].date").value("2030-01-01"))
-                .andExpect(jsonPath("$.days[0].productCount").value(1));
+                .andExpect(jsonPath("$.data.zone").value("Asia/Seoul"))
+                .andExpect(jsonPath("$.data.days[0].date").value("2030-01-01"))
+                .andExpect(jsonPath("$.data.days[0].productCount").value(1));
         mvc.perform(get("/api/v1/products/schedule").param("to", "2030-12-31"))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("COMMON_INVALID_REQUEST"));
     }
 
     @Test
     void invalidPagingAndEnumAreBadRequests() throws Exception {
         mvc.perform(get("/api/v1/products").param("size", "101"))
-                .andExpect(status().isBadRequest());
-        mvc.perform(get("/api/v1/products").param("page", "-1")).andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("COMMON_INVALID_REQUEST"));
+        mvc.perform(get("/api/v1/products").param("page", "-1"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("COMMON_INVALID_REQUEST"));
         mvc.perform(get("/api/v1/products").param("status", "INVALID"))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("COMMON_INVALID_REQUEST"));
     }
 
     @Test

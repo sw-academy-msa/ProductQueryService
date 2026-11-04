@@ -3,7 +3,8 @@ package com.msa.productquery.domain.product.query.controller;
 import com.msa.productquery.domain.product.query.dto.request.ProductSearchRequest;
 import com.msa.productquery.domain.product.query.dto.response.QueryResponses.*;
 import com.msa.productquery.domain.product.query.service.ProductQueryService;
-import com.msa.productquery.domain.projection.event.ProductSnapshot;
+import com.msa.productquery.global.response.ApiResponse;
+import com.msa.productquery.global.response.SuccessCode;
 
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 
@@ -28,40 +29,47 @@ public class ProductQueryController {
     }
 
     @GetMapping
-    public Page<Card> list(@Valid @ModelAttribute ProductSearchRequest request) {
-        return service.list(request);
+    public ApiResponse<Page<Card>> list(@Valid @ModelAttribute ProductSearchRequest request) {
+        Page<Card> response = service.list(request);
+        return ApiResponse.onSuccess(response, SuccessCode.OK);
     }
 
     @GetMapping("/schedule")
-    public Schedule schedule(
+    public ApiResponse<Schedule> schedule(
             @RequestParam(required = false) LocalDate from,
             @RequestParam(required = false) LocalDate to) {
-        return service.schedule(from, to);
+        Schedule response = service.schedule(from, to);
+        return ApiResponse.onSuccess(response, SuccessCode.OK);
     }
 
     @GetMapping("/{id}")
-    public Detail detail(@PathVariable UUID id) {
-        return service.detail(id);
+    public ApiResponse<Detail> detail(@PathVariable UUID id) {
+        Detail response = service.detail(id);
+        return ApiResponse.onSuccess(response, SuccessCode.OK);
     }
 
     @GetMapping("/{id}/options")
-    public List<Option> options(@PathVariable UUID id) {
-        return service.options(id);
+    public ApiResponse<List<Option>> options(@PathVariable UUID id) {
+        List<Option> response = service.options(id);
+        return ApiResponse.onSuccess(response, SuccessCode.OK);
     }
 
     @GetMapping("/{id}/faqs")
-    public List<ProductSnapshot.Faq> faqs(@PathVariable UUID id) {
-        return service.faqs(id);
+    public ApiResponse<List<Faq>> faqs(@PathVariable UUID id) {
+        List<Faq> response = service.faqs(id);
+        return ApiResponse.onSuccess(response, SuccessCode.OK);
     }
 
     @GetMapping("/{id}/inquiries")
     @PreAuthorize("hasRole('BUYER')")
     @SecurityRequirement(name = "bearerAuth")
-    public Page<Inquiry> inquiries(
+    public ApiResponse<Page<Inquiry>> inquiries(
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable UUID id,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        return service.ownInquiries(UUID.fromString(jwt.getSubject()), id, page, size);
+        Page<Inquiry> response =
+                service.ownInquiries(UUID.fromString(jwt.getSubject()), id, page, size);
+        return ApiResponse.onSuccess(response, SuccessCode.OK);
     }
 }

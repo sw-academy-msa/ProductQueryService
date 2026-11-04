@@ -6,7 +6,6 @@ import com.msa.productquery.domain.projection.repository.*;
 import com.msa.productquery.domain.projection.service.ProjectionService;
 import com.msa.productquery.global.config.kafka.ProjectionProperties;
 
-import jakarta.persistence.EntityManager;
 import jakarta.validation.Validator;
 
 import org.springframework.stereotype.Service;
@@ -25,7 +24,6 @@ public class ProjectionServiceImpl implements ProjectionService {
     private final ProductProjectionRepository products;
     private final InquiryProjectionRepository inquiries;
     private final ProcessedEventRepository processed;
-    private final EntityManager entityManager;
     private final ObjectMapper mapper;
     private final Validator validator;
     private final Clock clock;
@@ -35,7 +33,6 @@ public class ProjectionServiceImpl implements ProjectionService {
             ProductProjectionRepository products,
             InquiryProjectionRepository inquiries,
             ProcessedEventRepository processed,
-            EntityManager entityManager,
             ObjectMapper mapper,
             Validator validator,
             Clock clock,
@@ -43,7 +40,6 @@ public class ProjectionServiceImpl implements ProjectionService {
         this.products = products;
         this.inquiries = inquiries;
         this.processed = processed;
-        this.entityManager = entityManager;
         this.mapper = mapper;
         this.validator = validator;
         this.clock = clock;
@@ -96,11 +92,7 @@ public class ProjectionServiceImpl implements ProjectionService {
 
         // 없는 행의 최초 INSERT도 복제본 간 직렬화합니다. 해시 충돌은 추가 대기만 만들며 잘못된 갱신을 허용하지 않습니다.
         String lockKey = (inquiry ? "inquiry:" : "product:") + event.aggregateId();
-        entityManager
-                .createNativeQuery(
-                        "select pg_advisory_xact_lock(hashtextextended(cast(:key as text), 617))")
-                .setParameter("key", lockKey)
-                .getSingleResult();
+        processed.lockAggregate(lockKey);
         String eventHash = hash(json(event));
         var receipt = processed.findById(event.eventId());
         if (receipt.isPresent()) {
@@ -117,19 +109,20 @@ public class ProjectionServiceImpl implements ProjectionService {
             applyProduct(event, payloadHash);
         }
         processed.saveAndFlush(
-                new ProcessedEvent(
-                        event.eventId(),
-                        event.aggregateId(),
-                        event.aggregateVersion(),
-                        eventHash,
-                        clock.instant()));
+                ProcessedEvent.builder()
+                        .eventId(event.eventId())
+                        .aggregateId(event.aggregateId())
+                        .aggregateVersion(event.aggregateVersion())
+                        .hash(eventHash)
+                        .now(clock.instant())
+                        .build());
         // 서비스 트랜잭션 커밋 후 listener가 반환되어 Kafka offset을 확인 처리합니다.
     }
 
     private void applyProduct(ProjectionEvent e, String hash) {
         var row =
                 products.findById(e.aggregateId())
-                        .orElseGet(() -> new ProductProjection(e.aggregateId()));
+                        .orElseGet(() -> ProductProjection.builder().id(e.aggregateId()).build());
         if (!newer(e.aggregateVersion(), row.sourceVersion, hash, row.payloadHash)) {
             return;
         }
@@ -173,7 +166,7 @@ public class ProjectionServiceImpl implements ProjectionService {
         var row =
                 inquiries
                         .findById(e.aggregateId())
-                        .orElseGet(() -> new InquiryProjection(e.aggregateId()));
+                        .orElseGet(() -> InquiryProjection.builder().id(e.aggregateId()).build());
         if (!newer(e.aggregateVersion(), row.sourceVersion, hash, row.payloadHash)) {
             return;
         }

@@ -1,12 +1,13 @@
 package com.msa.productquery.domain.product.query.service.impl;
 
+import com.msa.productquery.domain.product.exception.ProductQueryErrorCode;
+import com.msa.productquery.domain.product.exception.ProductQueryException;
 import com.msa.productquery.domain.product.query.dto.request.ProductSearchRequest;
 import com.msa.productquery.domain.product.query.dto.response.QueryResponses.*;
 import com.msa.productquery.domain.product.query.service.*;
 import com.msa.productquery.domain.projection.entity.ProductProjection;
 import com.msa.productquery.domain.projection.event.ProductSnapshot;
 import com.msa.productquery.domain.projection.repository.*;
-import com.msa.productquery.global.error.*;
 
 import jakarta.persistence.criteria.Predicate;
 
@@ -51,17 +52,18 @@ public class ProductQueryServiceImpl implements ProductQueryService {
         if (r.startsFrom() != null
                 && r.startsTo() != null
                 && !r.startsTo().isAfter(r.startsFrom())) {
-            throw new BusinessException(CommonErrorCode.INVALID_REQUEST);
+            throw new ProductQueryException(ProductQueryErrorCode.INVALID_REQUEST);
         }
         var result =
                 products.findAll(specification(r, now), paging(r.page(), r.size(), sort(r.sort())));
-        return new Page<>(
-                result.getContent().stream().map(p -> card(p, now)).toList(),
-                result.getNumber(),
-                result.getSize(),
-                result.getTotalElements(),
-                result.getTotalPages(),
-                now);
+        return Page.<Card>builder()
+                .items(result.getContent().stream().map(p -> card(p, now)).toList())
+                .page(result.getNumber())
+                .size(result.getSize())
+                .totalElements(result.getTotalElements())
+                .totalPages(result.getTotalPages())
+                .serverTime(now)
+                .build();
     }
 
     public Detail detail(UUID id) {
@@ -69,49 +71,67 @@ public class ProductQueryServiceImpl implements ProductQueryService {
         var p = snapshot(row);
         Instant now = clock.instant();
         var status = status(row, now);
-        return new Detail(
-                id,
-                p.sellerId(),
-                p.name(),
-                p.description(),
-                p.brandOrStore(),
-                p.category(),
-                p.sourceUrl(),
-                p.price(),
-                p.shippingFee(),
-                p.dispatchBusinessDays(),
-                p.perAccountLimit(),
-                p.shippingNotice(),
-                p.purchaseNotice(),
-                p.disposalReason(),
-                p.attributes(),
-                p.dimensions(),
-                p.options().stream().map(this::option).toList(),
-                p.images().stream()
-                        .sorted(Comparator.comparingInt(ProductSnapshot.Image::position))
-                        .map(this::image)
-                        .toList(),
-                p.faqs(),
-                status,
-                p.startsAt(),
-                p.endsAt(),
-                p.soldOutAt(),
-                stock(row),
-                metadata(row),
-                status == SaleStatus.ON_SALE && row.availableQuantity > 0,
-                now);
+        return Detail.builder()
+                .id(id)
+                .sellerId(p.sellerId())
+                .name(p.name())
+                .description(p.description())
+                .brandOrStore(p.brandOrStore())
+                .category(p.category())
+                .sourceUrl(p.sourceUrl())
+                .price(p.price())
+                .shippingFee(p.shippingFee())
+                .dispatchBusinessDays(p.dispatchBusinessDays())
+                .perAccountLimit(p.perAccountLimit())
+                .shippingNotice(p.shippingNotice())
+                .purchaseNotice(p.purchaseNotice())
+                .disposalReason(p.disposalReason())
+                .attributes(
+                        p.attributes().stream()
+                                .map(
+                                        a ->
+                                                Attribute.builder()
+                                                        .name(a.name())
+                                                        .value(a.value())
+                                                        .build())
+                                .toList())
+                .dimensions(
+                        p.dimensions().stream()
+                                .map(
+                                        d ->
+                                                Dimension.builder()
+                                                        .name(d.name())
+                                                        .values(d.values())
+                                                        .build())
+                                .toList())
+                .options(p.options().stream().map(this::option).toList())
+                .images(
+                        p.images().stream()
+                                .sorted(Comparator.comparingInt(ProductSnapshot.Image::position))
+                                .map(this::image)
+                                .toList())
+                .faqs(p.faqs().stream().map(this::faq).toList())
+                .status(status)
+                .startsAt(p.startsAt())
+                .endsAt(p.endsAt())
+                .soldOutAt(p.soldOutAt())
+                .stock(stock(row))
+                .metadata(metadata(row))
+                .canAttemptPurchase(status == SaleStatus.ON_SALE && row.availableQuantity > 0)
+                .serverTime(now)
+                .build();
     }
 
     public List<Option> options(UUID id) {
         return snapshot(published(id)).options().stream().map(this::option).toList();
     }
 
-    public List<ProductSnapshot.Faq> faqs(UUID id) {
-        return snapshot(published(id)).faqs();
+    public List<Faq> faqs(UUID id) {
+        return snapshot(published(id)).faqs().stream().map(this::faq).toList();
     }
 
-    public List<String> categories() {
-        return products.findPublicCategories();
+    public Categories categories() {
+        return Categories.builder().categories(products.findPublicCategories()).build();
     }
 
     /** 다음 주까지의 달력 범위는 KST로 계산하며 UTC 경계로 DB를 집계합니다. */
@@ -123,25 +143,28 @@ public class ProductQueryServiceImpl implements ProductQueryService {
         if (to.isBefore(from)
                 || to.isAfter(nextSunday)
                 || java.time.temporal.ChronoUnit.DAYS.between(from, to) > 30) {
-            throw new BusinessException(CommonErrorCode.INVALID_REQUEST);
+            throw new ProductQueryException(ProductQueryErrorCode.INVALID_REQUEST);
         }
         var rows =
                 products.schedule(
                         from.atStartOfDay(DISPLAY_ZONE).toInstant(),
                         to.plusDays(1).atStartOfDay(DISPLAY_ZONE).toInstant());
-        return new Schedule(
-                from,
-                to,
-                DISPLAY_ZONE.getId(),
-                rows.stream()
-                        .map(
-                                d ->
-                                        new SaleDay(
-                                                d.getSaleDate(),
-                                                d.getProductCount(),
-                                                d.getFirstStartsAt()))
-                        .toList(),
-                clock.instant());
+        return Schedule.builder()
+                .from(from)
+                .to(to)
+                .zone(DISPLAY_ZONE.getId())
+                .days(
+                        rows.stream()
+                                .map(
+                                        d ->
+                                                SaleDay.builder()
+                                                        .date(d.getSaleDate())
+                                                        .productCount(d.getProductCount())
+                                                        .firstStartsAt(d.getFirstStartsAt())
+                                                        .build())
+                                .toList())
+                .serverTime(clock.instant())
+                .build();
     }
 
     public Page<Inquiry> ownInquiries(UUID buyer, UUID product, int page, int size) {
@@ -151,23 +174,26 @@ public class ProductQueryServiceImpl implements ProductQueryService {
                         product,
                         buyer,
                         paging(page, size, Sort.by("createdAt").descending().and(Sort.by("id"))));
-        return new Page<>(
-                result.getContent().stream()
-                        .map(
-                                i ->
-                                        new Inquiry(
-                                                i.id,
-                                                i.question,
-                                                i.answer,
-                                                i.createdAt,
-                                                i.answeredAt,
-                                                i.projectedAt))
-                        .toList(),
-                page,
-                size,
-                result.getTotalElements(),
-                result.getTotalPages(),
-                clock.instant());
+        return Page.<Inquiry>builder()
+                .items(
+                        result.getContent().stream()
+                                .map(
+                                        i ->
+                                                Inquiry.builder()
+                                                        .id(i.id)
+                                                        .question(i.question)
+                                                        .answer(i.answer)
+                                                        .createdAt(i.createdAt)
+                                                        .answeredAt(i.answeredAt)
+                                                        .projectedAt(i.projectedAt)
+                                                        .build())
+                                .toList())
+                .page(page)
+                .size(size)
+                .totalElements(result.getTotalElements())
+                .totalPages(result.getTotalPages())
+                .serverTime(clock.instant())
+                .build();
     }
 
     private Specification<ProductProjection> specification(ProductSearchRequest r, Instant now) {
@@ -234,7 +260,7 @@ public class ProductQueryServiceImpl implements ProductQueryService {
 
     private org.springframework.data.domain.Pageable paging(int page, int size, Sort sort) {
         if (page < 0 || size < 1 || size > 100) {
-            throw new BusinessException(CommonErrorCode.INVALID_REQUEST);
+            throw new ProductQueryException(ProductQueryErrorCode.INVALID_REQUEST);
         }
         return PageRequest.of(page, size, sort);
     }
@@ -242,7 +268,7 @@ public class ProductQueryServiceImpl implements ProductQueryService {
     private ProductProjection published(UUID id) {
         return products.findById(id)
                 .filter(p -> p.published)
-                .orElseThrow(() -> new BusinessException(CommonErrorCode.RESOURCE_NOT_FOUND));
+                .orElseThrow(() -> new ProductQueryException(ProductQueryErrorCode.NOT_FOUND));
     }
 
     private ProductSnapshot snapshot(ProductProjection row) {
@@ -256,19 +282,20 @@ public class ProductQueryServiceImpl implements ProductQueryService {
                         .filter(ProductSnapshot.Image::representative)
                         .findFirst()
                         .orElseThrow();
-        return new Card(
-                row.id,
-                row.name,
-                row.brandOrStore,
-                row.category,
-                row.price,
-                image(representative),
-                status(row, now),
-                row.startsAt,
-                row.endsAt,
-                p.soldOutAt(),
-                stock(row),
-                metadata(row));
+        return Card.builder()
+                .id(row.id)
+                .name(row.name)
+                .brandOrStore(row.brandOrStore)
+                .category(row.category)
+                .price(row.price)
+                .image(image(representative))
+                .status(status(row, now))
+                .startsAt(row.startsAt)
+                .endsAt(row.endsAt)
+                .soldOutAt(p.soldOutAt())
+                .stock(stock(row))
+                .metadata(metadata(row))
+                .build();
     }
 
     private SaleStatus status(ProductProjection row, Instant now) {
@@ -282,24 +309,49 @@ public class ProductQueryServiceImpl implements ProductQueryService {
     }
 
     private Stock stock(ProductProjection row) {
-        return new Stock(row.initialQuantity, row.confirmedQuantity, row.availableQuantity, true);
+        return Stock.builder()
+                .initialQuantity(row.initialQuantity)
+                .confirmedQuantity(row.confirmedQuantity)
+                .availableQuantity(row.availableQuantity)
+                .approximate(true)
+                .build();
     }
 
     private Metadata metadata(ProductProjection row) {
-        return new Metadata(row.sourceVersion, row.sourceOccurredAt, row.projectedAt);
+        return Metadata.builder()
+                .version(row.sourceVersion)
+                .occurredAt(row.sourceOccurredAt)
+                .projectedAt(row.projectedAt)
+                .build();
     }
 
     private Option option(ProductSnapshot.Option o) {
-        return new Option(o.id(), o.label(), o.selections(), o.availableQuantity());
+        return Option.builder()
+                .id(o.id())
+                .label(o.label())
+                .selections(o.selections())
+                .availableQuantity(o.availableQuantity())
+                .build();
+    }
+
+    /** HTTP 응답은 공개 필드를 복사하며 이벤트 객체 자체를 반환하지 않습니다. */
+    private Faq faq(ProductSnapshot.Faq f) {
+        return Faq.builder()
+                .id(f.id())
+                .question(f.question())
+                .answer(f.answer())
+                .confirmedAt(f.confirmedAt())
+                .build();
     }
 
     private Image image(ProductSnapshot.Image i) {
-        return new Image(
-                i.id(),
-                i.objectKey(),
-                images.resolve(i.objectKey()),
-                i.contentType(),
-                i.position(),
-                i.representative());
+        return Image.builder()
+                .id(i.id())
+                .objectKey(i.objectKey())
+                .url(images.resolve(i.objectKey()))
+                .contentType(i.contentType())
+                .position(i.position())
+                .representative(i.representative())
+                .build();
     }
 }
