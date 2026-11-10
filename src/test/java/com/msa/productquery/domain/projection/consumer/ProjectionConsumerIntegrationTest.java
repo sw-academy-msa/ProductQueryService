@@ -37,7 +37,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 class ProjectionConsumerIntegrationTest extends QueryDatabaseTestSupport {
     static final KafkaContainer KAFKA =
             new KafkaContainer("apache/kafka:4.1.0")
-                    .withEnv("KAFKA_HEAP_OPTS", "-Xms256m -Xmx256m");
+                    .withEnv("KAFKA_HEAP_OPTS", "-Xms256m -Xmx256m")
+                    .withEnv("KAFKA_MESSAGE_MAX_BYTES", "4194304")
+                    .withEnv("KAFKA_REPLICA_FETCH_MAX_BYTES", "4194304");
 
     static {
         KAFKA.start();
@@ -82,6 +84,23 @@ class ProjectionConsumerIntegrationTest extends QueryDatabaseTestSupport {
         inquiries.deleteAll();
         products.deleteAll();
         registry.getListenerContainer("product-query-projection").start();
+    }
+
+    /** 애플리케이션 검증만 통과하고 브로커에서 거절되는 불일치를 실제 Kafka로 검증합니다. */
+    @Test
+    void threeMiBProductTraversesKafkaAndUpdatesQuery() throws Exception {
+        UUID id = UUID.randomUUID();
+        byte[] json = mapper.writeValueAsBytes(product(id, 1, "큰 Kafka 상품", NOW, 0, 0));
+        byte[] payload = Arrays.copyOf(json, 3 * 1024 * 1024);
+        Arrays.fill(payload, json.length, payload.length, (byte) ' ');
+        kafka.send(PRODUCT_TOPIC, id.toString(), payload).get(20, TimeUnit.SECONDS);
+        await().atMost(Duration.ofSeconds(30))
+                .untilAsserted(
+                        () -> {
+                            assertThat(products.findById(id)).isPresent();
+                            assertThat(products.findById(id).orElseThrow().name)
+                                    .isEqualTo("큰 Kafka 상품");
+                        });
     }
 
     @Test

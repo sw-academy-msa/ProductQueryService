@@ -21,6 +21,10 @@ import java.util.*;
 /** 조회 버전과 eventId를 같은 로컬 트랜잭션으로 반영합니다. 원본 DB와 분산 트랜잭션을 만들지 않습니다. */
 @Service
 public class ProjectionServiceImpl implements ProjectionService {
+    // Command 상품 Outbox의 UTF-8 3 MiB 상한과 일치시켜 발행 성공 후 조회 반영이 거절되지 않게 합니다.
+    static final int MAX_PRODUCT_EVENT_BYTES = 3 * 1024 * 1024;
+    // 문의와 비공개 전환은 기존 2 MiB 계약을 유지합니다.
+    static final int MAX_OTHER_EVENT_BYTES = 2 * 1024 * 1024;
     private final ProductProjectionRepository products;
     private final InquiryProjectionRepository inquiries;
     private final ProcessedEventRepository processed;
@@ -51,7 +55,7 @@ public class ProjectionServiceImpl implements ProjectionService {
     public void apply(String topic, String partitionKey, byte[] value) {
         ProjectionEvent event;
         try {
-            if (value == null || value.length > 2 * 1024 * 1024) {
+            if (value == null || value.length > MAX_PRODUCT_EVENT_BYTES) {
                 throw new InvalidProjectionEventException();
             }
             event =
@@ -63,6 +67,10 @@ public class ProjectionServiceImpl implements ProjectionService {
             throw new InvalidProjectionEventException();
         }
         if (event == null || !validator.validate(event).isEmpty()) {
+            throw new InvalidProjectionEventException();
+        }
+        if (event.type() != ProjectionEvent.Type.PRODUCT_UPSERT
+                && value.length > MAX_OTHER_EVENT_BYTES) {
             throw new InvalidProjectionEventException();
         }
         boolean inquiry = event.type() == ProjectionEvent.Type.INQUIRY_UPSERT;
