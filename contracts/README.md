@@ -20,6 +20,12 @@ PRODUCT_UPSERT는 product만, INQUIRY_UPSERT는 inquiry만, PRODUCT_UNPUBLISHED�
 비공개 주소·연락처·계좌·심사 사유를 공개 이벤트에 넣지 않습니다. 문의 토픽은 구매자 ID와 본문을 포함하므로 별도 ACL이 필요합니다.
 이벤트 원문과 토큰을 애플리케이션 로그로 출력하지 않습니다.
 
+## 이벤트 크기
+
+PRODUCT_UPSERT의 UTF-8 JSON 값은 Command와 Query 모두 최대 3 MiB를 허용합니다. 문의와 비공개 전환 이벤트의 Query 수신 상한은 기존 2 MiB를 유지합니다. Kafka 레코드 키·헤더·배치 오버헤드는 값 크기와 별개이며 기존 4 MiB 전송·수신 설정을 유지합니다. 상한을 넘는 이벤트는 조회 모델과 처리 이력을 갱신하지 않고 기존 영구 오류 경로로 처리합니다.
+
+로컬 compose.kafka.yaml의 브로커 message.max.bytes와 replica.fetch.max.bytes도 4 MiB로 맞춥니다. 앱 설정만 늘리고 브로커 기본 약 1 MiB를 유지하면 큰 이벤트는 수신 검증에 도달하지 못합니다. 기존 토픽에 max.message.bytes 개별 설정이 있으면 브로커 기본값보다 우선하므로 별도 확인이 필요합니다. 실제 운영 브로커·토픽은 이 코드 변경만으로 갱신되지 않습니다. [Kafka 4.1 브로커 설정](https://kafka.apache.org/41/configuration/broker-configs/)을 기준으로 합니다.
+
 ## 버전과 멱등
 
 **상품 aggregateVersion은 Command의 기존 JPA @Version을 그대로 사용하면 안 됩니다.**

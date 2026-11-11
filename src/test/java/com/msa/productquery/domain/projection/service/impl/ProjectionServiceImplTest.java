@@ -27,18 +27,12 @@ import java.util.concurrent.*;
 @ActiveProfiles("test")
 @Import(QueryDatabaseTestSupport.Time.class)
 class ProjectionServiceImplTest extends QueryDatabaseTestSupport {
-    @Autowired
-    ProjectionService service;
-    @Autowired
-    ProductProjectionRepository products;
-    @Autowired
-    InquiryProjectionRepository inquiries;
-    @Autowired
-    ProcessedEventRepository receipts;
-    @Autowired
-    ObjectMapper mapper;
-    @Autowired
-    MutableClock clock;
+    @Autowired ProjectionService service;
+    @Autowired ProductProjectionRepository products;
+    @Autowired InquiryProjectionRepository inquiries;
+    @Autowired ProcessedEventRepository receipts;
+    @Autowired ObjectMapper mapper;
+    @Autowired MutableClock clock;
 
     @BeforeEach
     void clean() {
@@ -51,6 +45,69 @@ class ProjectionServiceImplTest extends QueryDatabaseTestSupport {
     void apply(ProjectionEvent event) {
         service.apply(
                 PRODUCT_TOPIC, event.aggregateId().toString(), mapper.writeValueAsBytes(event));
+    }
+
+    /** 크기는 문자열 길이가 아니라 실제 Kafka 값의 UTF-8 바이트 수로 판정합니다. */
+    @Test
+    void acceptsMultibyteProductSnapshotBetweenTwoAndThreeMiB() {
+        UUID id = UUID.randomUUID();
+        var tree = mapper.valueToTree(product(id, 1, "대용량 합성 상품", NOW, 0, 0));
+        var attributes =
+                ((tools.jackson.databind.node.ObjectNode) tree.path("product"))
+                        .putArray("attributes");
+        for (int n = 0; n < 750; n++) {
+            attributes.addObject().put("name", "항목" + n).put("value", "가".repeat(1000));
+        }
+        byte[] payload = mapper.writeValueAsBytes(tree);
+        assertThat(payload.length).isGreaterThan(2 * 1024 * 1024).isLessThan(3 * 1024 * 1024);
+        service.apply(PRODUCT_TOPIC, id.toString(), payload);
+        assertThat(products.findById(id).orElseThrow().name).isEqualTo("대용량 합성 상품");
+        assertThat(receipts.count()).isEqualTo(1);
+    }
+
+    /** 유효한 JSON 뒤의 공백도 전송 크기에 포함하여 경계값과 초과 시 원자적 거부를 검증합니다. */
+    @Test
+    void acceptsExactlyThreeMiBProductButRejectsOneAdditionalByteWithoutDatabaseChanges() {
+        UUID id = UUID.randomUUID();
+        byte[] exact =
+                padded(
+                        mapper.writeValueAsBytes(product(id, 1, "경계 상품", NOW, 0, 0)),
+                        3 * 1024 * 1024);
+        service.apply(PRODUCT_TOPIC, id.toString(), exact);
+        var next =
+                padded(
+                        mapper.writeValueAsBytes(product(id, 2, "반영되면 안 되는 상품", NOW, 0, 0)),
+                        3 * 1024 * 1024 + 1);
+        assertThatThrownBy(() -> service.apply(PRODUCT_TOPIC, id.toString(), next))
+                .isInstanceOf(InvalidProjectionEventException.class);
+        assertThat(products.findById(id).orElseThrow().name).isEqualTo("경계 상품");
+        assertThat(receipts.count()).isEqualTo(1);
+    }
+
+    @Test
+    void inquiryStillAcceptsTwoMiBAndRejectsOneAdditionalByte() {
+        UUID id = UUID.randomUUID(), product = UUID.randomUUID(), buyer = UUID.randomUUID();
+        var exact =
+                padded(
+                        mapper.writeValueAsBytes(
+                                EventFixtures.inquiry(id, product, buyer, 0, null)),
+                        2 * 1024 * 1024);
+        service.apply(INQUIRY_TOPIC, product.toString(), exact);
+        var tooLarge =
+                padded(
+                        mapper.writeValueAsBytes(
+                                EventFixtures.inquiry(id, product, buyer, 1, "새 답변")),
+                        2 * 1024 * 1024 + 1);
+        assertThatThrownBy(() -> service.apply(INQUIRY_TOPIC, product.toString(), tooLarge))
+                .isInstanceOf(InvalidProjectionEventException.class);
+        assertThat(inquiries.findById(id).orElseThrow().answer).isNull();
+        assertThat(receipts.count()).isEqualTo(1);
+    }
+
+    private byte[] padded(byte[] json, int size) {
+        byte[] payload = Arrays.copyOf(json, size);
+        Arrays.fill(payload, json.length, size, (byte) ' ');
+        return payload;
     }
 
     @Test
