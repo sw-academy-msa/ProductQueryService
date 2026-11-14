@@ -6,6 +6,12 @@ spring:
     name: product-query-service
   profiles:
     default: local
+  # 테이블 변경은 db/migration의 버전 SQL로 관리합니다.
+  flyway:
+    locations: classpath:db/migration
+    default-schema: product_query
+    schemas: product_query
+    create-schemas: true
   jpa:
     open-in-view: false
     properties:

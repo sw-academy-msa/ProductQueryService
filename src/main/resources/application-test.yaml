@@ -1,5 +1,8 @@
 # 실제 환경 파일·Eureka·AWS 없이 격리된 DB/Kafka fixture로 검증합니다.
 spring:
+  # 일반 테스트는 Hibernate로 테이블을 만들고, Flyway SQL은 FlywayMigrationTest가 따로 검증합니다.
+  flyway:
+    enabled: false
   config:
     import: optional:classpath:/test-overrides.properties
 query:
