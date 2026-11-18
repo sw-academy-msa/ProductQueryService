@@ -1,0 +1,56 @@
+{
+  "eventId" : "8bd9c1f2-f80b-4259-88f4-b2099cc64dec",
+  "schemaVersion" : 1,
+  "type" : "PRODUCT_UPSERT",
+  "aggregateId" : "00000000-0000-0000-0000-000000000001",
+  "aggregateVersion" : 1,
+  "occurredAt" : "2030-01-01T00:00:00Z",
+  "product" : {
+    "status" : "APPROVED",
+    "sellerId" : "bb62c911-0248-39d7-b354-f23571637959",
+    "name" : "계약 예시 상품",
+    "description" : "합성 상품 설명",
+    "brandOrStore" : "테스트 판매처",
+    "category" : "문구",
+    "sourceUrl" : "https://example.com/item",
+    "price" : 1000,
+    "shippingFee" : 3000,
+    "dispatchBusinessDays" : 2,
+    "perAccountLimit" : 3,
+    "shippingNotice" : "배송 안내",
+    "purchaseNotice" : "구매 안내",
+    "disposalReason" : "남은 새 상품",
+    "startsAt" : "2030-01-01T00:00:00Z",
+    "endsAt" : "2030-01-01T03:00:00Z",
+    "publishedAt" : "2029-12-31T23:00:00Z",
+    "soldOutAt" : null,
+    "attributes" : [ {
+      "name" : "규격",
+      "value" : "A5"
+    } ],
+    "dimensions" : [ ],
+    "options" : [ {
+      "id" : "33563662-af68-3448-89e9-1d39f6c40bd6",
+      "label" : "기본",
+      "initialQuantity" : 10,
+      "reservedQuantity" : 0,
+      "confirmedQuantity" : 0,
+      "selections" : { }
+    } ],
+    "images" : [ {
+      "id" : "74477c9f-6a36-3f82-9fd0-7fc53791a562",
+      "objectKey" : "product-images/00000000-0000-0000-0000-000000000001/74477c9f-6a36-3f82-9fd0-7fc53791a562",
+      "contentType" : "image/png",
+      "sizeBytes" : 68,
+      "position" : 0,
+      "representative" : true
+    } ],
+    "faqs" : [ {
+      "id" : "346c0fbe-caae-32ba-8db9-9315b26df454",
+      "question" : "규격은?",
+      "answer" : "A5입니다.",
+      "confirmedAt" : "2029-12-31T23:00:00Z"
+    } ]
+  },
+  "inquiry" : null
+}
